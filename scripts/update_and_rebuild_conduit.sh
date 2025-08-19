@@ -70,6 +70,6 @@ rm -rf "$CONDUIT_BUILD_DIR"
 # Build and install conduit
 mkdir -p "$CONDUIT_BUILD_DIR"
 cd "$CONDUIT_BUILD_DIR"
-cmake ../src -DCMAKE_INSTALL_PREFIX="$CONDUIT_DIR"
+cmake ../src -DCMAKE_INSTALL_PREFIX="$CONDUIT_DIR" $@ # makes sure we can get mpi built
 make -j ${MOOSE_JOBS:-4}
 make -j ${MOOSE_JOBS:-4} install

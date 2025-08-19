@@ -55,3 +55,11 @@
     path = framework/contrib/neml2
     url = ../../applied-material-modeling/neml2.git
     update = none
+[submodule "framework/contrib/tribol-repo"]
+	path = framework/contrib/tribol-repo
+	url = https://github.com/sean-baccas/Tribol.git
+    update = none
+[submodule "framework/contrib/axom-repo"]
+	path = framework/contrib/axom-repo
+	url = https://github.com/LLNL/axom.git
+    update = none
