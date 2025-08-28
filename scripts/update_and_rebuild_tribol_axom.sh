@@ -145,7 +145,7 @@ git submodule update --init --recursive
 # warning - make sure that you have built conduit with mpi!
 
 # need to use the one with distutils
-/usr/bin/python3 ./config-build.py -hc ../mfem/miniapps/tribol/axom-gcc-notpl.cmake -bt Debug -DCMAKE_INSTALL_PREFIX=../../axom -DCONDUIT_DIR="${SCRIPT_DIR}"/../framework/contrib/conduit/installed #-DAXOM_ENABLE_CUDA=true
+/usr/bin/python3 ./config-build.py -hc ../mfem/miniapps/tribol/axom-gcc-notpl.cmake -bt Debug -DCMAKE_INSTALL_PREFIX=../../axom -DCONDUIT_DIR="${SCRIPT_DIR}"/../framework/contrib/conduit/installed -DAXOM_ENABLE_CUDA=true
 cd build-axom-gcc-notpl-debug && make -j${MOOSE_JOBS:-4} install
 
 TRIBOL_SRC_DIR="$(get_realpath "${SCRIPT_DIR}"/../framework/contrib/tribol-repo)"
@@ -155,7 +155,7 @@ cd $TRIBOL_SRC_DIR
 git submodule update --init --recursive
 
 git checkout develop
-/usr/bin/python3 ./config-build.py -hc ../mfem/miniapps/tribol/tribol-gcc-basictpl.cmake -bt Debug -DCMAKE_INSTALL_PREFIX=../../tribol -DMFEM_DIR=$MFEM_DIR -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON #-DCMAKE_CXX_FLAGS="-I/usr/local/cuda-12.4/include"
+/usr/bin/python3 ./config-build.py -hc ../mfem/miniapps/tribol/tribol-gcc-basictpl.cmake -bt Debug -DCMAKE_INSTALL_PREFIX=../../tribol -DMFEM_DIR=$MFEM_DIR -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-I/usr/local/cuda-12.4/include"
 cd build-tribol-gcc-basictpl-debug && make -j${MOOSE_JOBS:-4} install
 
 # finally, go back to mfem with the new cmake config

@@ -86,6 +86,13 @@ public:
   const std::vector<std::string> & TrialVarNames() const { return _trial_var_names; }
   const std::vector<std::string> & TestVarNames() const { return _test_var_names; }
 
+  // Wrapper around tribol::getMfemPressure
+  mfem::ParGridFunction& getMfemPressure(int coupling_scheme_id=0);
+
+  // Check if we have contact enabled for this problem. Query the problem data for
+  // that one.
+  bool UseContact() const;
+
 private:
   /// Disallowed inherited method
   using mfem::Operator::RecoverFEMSolution;
