@@ -13,6 +13,10 @@
 #include "MFEMProblemSolve.h"
 #include "MFEMProblem.h"
 
+#include "axom/slic.hpp"
+#include "tribol/interface/tribol.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
+
 InputParameters
 MFEMProblemSolve::validParams()
 {

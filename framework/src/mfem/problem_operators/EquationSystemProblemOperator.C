@@ -18,7 +18,35 @@ EquationSystemProblemOperator::SetGridFunctions()
 {
   _test_var_names = GetEquationSystem()->TestVarNames();
   _trial_var_names = GetEquationSystem()->TrialVarNames();
-  ProblemOperator::SetGridFunctions();
+
+  if (GetEquationSystem()->UseContact())
+  {
+    // stuff from ProblemOperatorInterface::SetGridFunctions()
+    _test_variables = _problem_data.gridfunctions.Get(_test_var_names);
+    _trial_variables = _problem_data.gridfunctions.Get(_trial_var_names);
+
+    // Set operator size and block structure - add an extra one for the contact block
+    _block_true_offsets.SetSize(_trial_variables.size() + 2);
+    _block_true_offsets[0] = 0;
+    for (unsigned int ind = 0; ind < _trial_variables.size(); ++ind)
+    {
+      _block_true_offsets[ind + 1] = _trial_variables.at(ind)->ParFESpace()->TrueVSize();
+    }
+
+    // final one. This makes sure the contact block is registered with _true_x and _true_rhs
+    _block_true_offsets[ _trial_variables.size() + 1 ] = GetEquationSystem()->getMfemPressure().ParFESpace()->TrueVSize();
+
+    _block_true_offsets.PartialSum();
+
+    _true_x.Update(_block_true_offsets);
+    _true_rhs.Update(_block_true_offsets);
+    
+    // final step from ProblemOperator::SetGridFunctions()
+    width = height = _block_true_offsets[_trial_variables.size()];
+  }
+
+  else
+    ProblemOperator::SetGridFunctions();
 }
 
 void

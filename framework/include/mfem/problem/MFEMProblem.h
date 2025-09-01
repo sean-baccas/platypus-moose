@@ -205,6 +205,10 @@ public:
    */
   std::shared_ptr<mfem::ParGridFunction> getGridFunction(const std::string & name);
 
+  bool useContact() const;
+
+  mfem::ParGridFunction & getCoords();
+
 protected:
   MFEMProblemData _problem_data;
 };

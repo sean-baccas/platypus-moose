@@ -28,6 +28,8 @@ public:
   /// Check if last solve converged.
   virtual bool lastSolveConverged() const override { return _last_solve_converged; };
 
+  void initTribol();
+
 private:
   MFEMProblem & _mfem_problem;
   MFEMProblemData & _mfem_problem_data;

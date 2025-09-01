@@ -505,6 +505,21 @@ MFEMProblem::getGridFunction(const std::string & name)
   return getUserObject<MFEMVariable>(name).getGridFunction();
 }
 
+bool
+MFEMProblem::useContact() const
+{
+  return _problem_data._use_contact;
+}
+
+mfem::ParGridFunction &
+MFEMProblem::getCoords()
+{
+  getProblemData().pmesh->EnsureNodes(); // why not
+  mfem::ParGridFunction* coords = dynamic_cast<mfem::ParGridFunction*>( getProblemData().pmesh->GetNodes() );
+  // if ( !coords ) MFEM_ABORT("Failed to cast from GridFunction to ParGridFunction");
+  return *coords;
+}
+
 void
 MFEMProblem::addInitialCondition(const std::string & ic_name,
                                  const std::string & name,

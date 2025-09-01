@@ -13,6 +13,10 @@
 #include "MFEMProblem.h"
 #include "EquationSystemProblemOperator.h"
 
+#include "axom/slic.hpp"
+#include "tribol/interface/tribol.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
+
 registerMooseObject("MooseApp", MFEMSteady);
 
 InputParameters
@@ -51,6 +55,8 @@ MFEMSteady::init()
 {
   _mfem_problem.execute(EXEC_PRE_MULTIAPP_SETUP);
   _mfem_problem.initialSetup();
+
+  initTribol();
 
   // Set up initial conditions
   _mfem_problem_data.eqn_system->Init(
@@ -109,6 +115,60 @@ MFEMSteady::execute()
   }
 
   postExecute();
+}
+
+void
+MFEMSteady::initTribol()
+{
+  // silence warning
+  axom::slic::initialize();
+
+  // Create a Tribol coupling scheme: defines contact surfaces and enforcement
+  int coupling_scheme_id = 0;
+  
+  const int dimensions = _mfem_problem.mesh().dimension();
+  tribol::initialize(dimensions, MPI_COMM_WORLD);
+
+  // While there is a single mfem ParMesh for this problem, Tribol
+  // defines a mortar and a nonmortar contact mesh, each with a unique mesh ID.
+  // The Tribol mesh IDs for each contact surface are defined here.
+  int mesh1_id = 0;
+  int mesh2_id = 1;
+
+  // take a reference to the pmesh
+  mfem::ParMesh& pmesh = *(_mfem_problem.getProblemData().pmesh);
+
+  // copied from the test case!
+  std::set<int>  mortar_attrs    = {4};
+  std::set<int>  nonmortar_attrs = {5};
+
+  tribol::registerMfemCouplingScheme(
+    coupling_scheme_id, mesh1_id, mesh2_id,
+    pmesh, _mfem_problem.getCoords(), mortar_attrs, nonmortar_attrs,
+    tribol::SURFACE_TO_SURFACE,
+    tribol::NO_CASE,
+    tribol::SINGLE_MORTAR,
+    tribol::FRICTIONLESS,
+    tribol::LAGRANGE_MULTIPLIER,
+    tribol::BINNING_GRID
+  );
+
+  // Set Tribol options for Lagrange multiplier enforcement
+  tribol::setLagrangeMultiplierOptions(
+    coupling_scheme_id,
+    tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
+  );
+ 
+  // #4: Update contact mesh decomposition so the on-rank Tribol meshes
+  // coincide with the current configuration of the mesh. This must be called
+  // before tribol::update().
+  tribol::updateMfemParallelDecomposition();
+  
+  // #5: Update contact gaps, forces, and tangent stiffness contributions
+  int cycle = 1;   // pseudo cycle
+  mfem::real_t t = 1.0;  // pseudo time
+  mfem::real_t dt = 1.0; // pseudo dt
+  tribol::update(cycle, t, dt);
 }
 
 #endif

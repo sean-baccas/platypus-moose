@@ -11,6 +11,9 @@
 
 #include "EquationSystem.h"
 #include "libmesh/int_range.h"
+#include "axom/slic.hpp"
+#include "tribol/interface/tribol.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
 
 namespace Moose::MFEM
 {
@@ -197,7 +200,11 @@ EquationSystem::FormLegacySystem(mfem::OperatorHandle & op,
 
   // Allocate block operator
   DeleteAllBlocks();
-  _h_blocks.SetSize(_test_var_names.size(), _test_var_names.size());
+
+  if (UseContact())
+    _h_blocks.SetSize(_test_var_names.size()+1, _test_var_names.size()+1);
+  else
+    _h_blocks.SetSize(_test_var_names.size(), _test_var_names.size());
   // Form diagonal blocks.
   for (const auto i : index_range(_test_var_names))
   {
@@ -239,6 +246,32 @@ EquationSystem::FormLegacySystem(mfem::OperatorHandle & op,
       }
     }
   }
+
+  // finally, add in the pressure/gap coupling terms
+  int coupling_scheme_id = 0;
+  auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id).release();
+  A_blk->owns_blocks = false;
+
+  // we can hardcode the blocks we want to insert!
+
+  // final row, second to last column
+  _h_blocks(_test_var_names.size(), _test_var_names.size()-1) = dynamic_cast<const mfem::HypreParMatrix*>( std::move(&A_blk->GetBlock(1, 0)) );
+  
+  // second to last row, final column
+  _h_blocks( _test_var_names.size()-1, _test_var_names.size()) = dynamic_cast<const mfem::HypreParMatrix*>( std::move(&A_blk->GetBlock(0, 1)) );
+
+  // bottom right block
+  _h_blocks( _test_var_names.size(), _test_var_names.size()) = dynamic_cast<const mfem::HypreParMatrix*>( std::move(&A_blk->GetBlock(1, 1)) );
+
+  mfem::BlockVector B_blk(A_blk->RowOffsets());
+  
+  mfem::Vector gap;
+  tribol::getMfemGap(coupling_scheme_id, gap); // gap on ldofs
+  auto& pressure  = getMfemPressure();
+  auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
+  auto& gap_true = trueRHS.GetBlock(_test_var_names.size()); // gap tdof vectorParFESpace()
+  P_submesh.MultTranspose(gap, gap_true);
+
   // Sync memory
   for (const auto i : index_range(_test_var_names))
   {
@@ -398,6 +431,12 @@ EquationSystem::BuildEquationSystem()
   BuildBilinearForms();
   BuildMixedBilinearForms();
   BuildLinearForms();
+}
+
+mfem::ParGridFunction&
+EquationSystem::getMfemPressure(int coupling_scheme_id)
+{
+  return tribol::getMfemPressure(coupling_scheme_id);
 }
 
 TimeDependentEquationSystem::TimeDependentEquationSystem() : _dt_coef(1.0) {}

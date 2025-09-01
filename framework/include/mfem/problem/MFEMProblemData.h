@@ -41,6 +41,8 @@ public:
   Moose::MFEM::FESpaces fespaces;
   Moose::MFEM::GridFunctions gridfunctions;
 
+  bool _use_contact{false};
+
   MPI_Comm comm;
   int myid;
   int num_procs;

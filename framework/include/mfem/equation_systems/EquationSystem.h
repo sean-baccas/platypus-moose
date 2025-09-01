@@ -91,7 +91,8 @@ public:
 
   // Check if we have contact enabled for this problem. Query the problem data for
   // that one.
-  bool UseContact() const;
+  #pragma message "Warning - hardcoding true here"
+  bool UseContact() const { return true; };
 
 private:
   /// Disallowed inherited method
