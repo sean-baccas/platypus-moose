@@ -91,6 +91,7 @@ private:
    */
   std::optional<std::string> _mesh_displacement_variable;
 
+protected: 
   /**
    * Smart pointers to mfem::ParMesh object. Do not access directly.
    * Use the accessors instead.
