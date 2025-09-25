@@ -436,7 +436,19 @@ MFEMProblem::displaceMesh()
   if (mesh().shouldDisplace())
   {
     mesh().displace(static_cast<mfem::GridFunction const &>(*getMeshDisplacementGridFunction()));
-    // TODO: update FESpaces GridFunctions etc for transient solves
+
+    for (const auto & fe_space_pair : _problem_data.fespaces)
+    {
+      fe_space_pair.second->Update();
+    }
+    for (const auto & gridfunction_pair : _problem_data.gridfunctions)
+    {
+      gridfunction_pair.second->Update();
+    }
+
+    // update the old displacement gridfunction that we store in
+    // the mesh class as well
+    mesh().getOldDisplacement().Update();
   }
 }
 
