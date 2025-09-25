@@ -69,6 +69,7 @@ public:
    * Does not update FE spaces for variables.
    */
   void displace(mfem::GridFunction const & displacement);
+  mfem::GridFunction & getOldDisplacement() { return _old_displacement; }
 
   bool isDistributedMesh() const override { return true; }
   unsigned int dimension() const override { return _mfem_par_mesh->Dimension(); }
@@ -92,6 +93,8 @@ private:
    * Holds name of variable used for mesh displacement, if set.
    */
   std::optional<std::string> _mesh_displacement_variable;
+
+  mfem::GridFunction _old_displacement;
 
   /**
    * Smart pointers to mfem::ParMesh object. Do not access directly.
