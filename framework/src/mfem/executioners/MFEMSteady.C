@@ -12,6 +12,7 @@
 #include "MFEMSteady.h"
 #include "MFEMProblem.h"
 #include "EquationSystemProblemOperator.h"
+#include "FixedPointProblemOperator.h"
 
 registerMooseObject("MooseApp", MFEMSteady);
 
@@ -39,8 +40,10 @@ MFEMSteady::MFEMSteady(const InputParameters & params)
   if (getProblemOperators().empty())
   {
     _mfem_problem_data.eqn_system = std::make_shared<Moose::MFEM::EquationSystem>();
+
+    // TODO: Figure out how to pass this in as an argument
     auto problem_operator =
-        std::make_shared<Moose::MFEM::EquationSystemProblemOperator>(_mfem_problem);
+        std::make_shared<Moose::MFEM::FixedPointProblemOperator>(_mfem_problem);
     addProblemOperator(std::move(problem_operator));
   }
 }

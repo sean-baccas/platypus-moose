@@ -452,6 +452,22 @@ MFEMProblem::displaceMesh()
   }
 }
 
+void
+MFEMProblem::initMeshDisplacement()
+{
+  // Displace mesh
+  if (mesh().shouldDisplace())
+  {
+    auto& displacement = static_cast<mfem::GridFunction const &>(*getMeshDisplacementGridFunction());
+    auto& old_displacement = mesh().getOldDisplacement();
+
+    auto* fespace = displacement.FESpace();
+    old_displacement.SetSpace( const_cast<mfem::FiniteElementSpace*>(fespace) );
+    old_displacement = 0.0;
+  }
+}
+
+
 std::optional<std::reference_wrapper<mfem::ParGridFunction const>>
 MFEMProblem::getMeshDisplacementGridFunction()
 {

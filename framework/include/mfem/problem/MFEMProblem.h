@@ -190,6 +190,8 @@ public:
    */
   void displaceMesh();
 
+  void initMeshDisplacement();
+
   /**
    * Returns optional reference to the displacement GridFunction to apply to nodes.
    */

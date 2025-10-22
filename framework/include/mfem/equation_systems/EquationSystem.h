@@ -33,6 +33,7 @@ class EquationSystem : public mfem::Operator
 public:
   friend class EquationSystemProblemOperator;
   friend class TimeDomainEquationSystemProblemOperator;
+  friend class FixedPointProblemOperator;
 
   EquationSystem() = default;
   ~EquationSystem() override;

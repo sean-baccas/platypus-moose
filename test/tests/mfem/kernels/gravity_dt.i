@@ -1,6 +1,6 @@
 [Mesh]
   type = MFEMMesh
-  file = ../mesh/beam-tet.mesh
+  file = ../mesh/beam_coarse.e
   displacement = "displacement"
 []
 
@@ -34,7 +34,7 @@
     type = MFEMVectorBoundaryIntegratedBC
     variable = displacement
     boundary = '2'
-    vector_coefficient = '1.0 0.0 0.0'
+    vector_coefficient = '10.0 0.0 0.0'
   []
 []
 
@@ -69,12 +69,9 @@
 []
 
 [Executioner]
-  type = MFEMTransient
+  type = MFEMSteady
   device = "cpu"
   assembly_level = legacy
-  dt = 0.2
-  start_time = 0.0
-  end_time = 5.0
 []
 
 
