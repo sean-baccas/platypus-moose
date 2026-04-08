@@ -33,9 +33,6 @@ public:
   ///Nonlinear Mult (Used by Newton-solver not necessarily nonlinear)
   virtual void Mult(const mfem::Vector & x, mfem::Vector & y) const override;
 
-  /// Build all forms comprising this EquationSystem
-  virtual void BuildEquationSystem() override;
-
   /// Build linear forms and eliminate constrained DoFs
   virtual void BuildLinearForms() override;
 
@@ -131,10 +128,9 @@ public:
 
   // Pointer to complex GridFunctions to enable updates during nonlinear iterations
   Moose::MFEM::ComplexGridFunctions * _complex_gfuncs;
-  
-  private:
 
-    friend class ComplexEquationSystemProblemOperator;
+private:
+  friend class ComplexEquationSystemProblemOperator;
 };
 
 template <class FormType>
