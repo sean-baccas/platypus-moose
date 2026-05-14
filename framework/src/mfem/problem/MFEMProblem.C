@@ -275,6 +275,10 @@ MFEMProblem::addGridFunction(const std::string & var_type,
           var_name + "_real", &mfem_variable.getComplexGridFunction()->real());
       getCoefficients().declareScalar<mfem::GridFunctionCoefficient>(
           var_name + "_imag", &mfem_variable.getComplexGridFunction()->imag());
+      getCoefficients().declareVector<mfem::GradientGridFunctionCoefficient>(
+          var_name + "_grad_real", &mfem_variable.getComplexGridFunction()->real());
+      getCoefficients().declareVector<mfem::GradientGridFunctionCoefficient>(
+          var_name + "_grad_imag", &mfem_variable.getComplexGridFunction()->imag());                    
     }
     else
     {
@@ -289,8 +293,12 @@ MFEMProblem::addGridFunction(const std::string & var_type,
     MFEMVariable & mfem_variable = getMFEMObject<MFEMVariable>("MooseVariableBase", var_name);
     getProblemData().gridfunctions.Register(var_name, mfem_variable.getGridFunction());
     if (mfem_variable.getFESpace().isScalar())
+    {
       getCoefficients().declareScalar<mfem::GridFunctionCoefficient>(
           var_name, mfem_variable.getGridFunction().get());
+      getCoefficients().declareVector<mfem::GradientGridFunctionCoefficient>(
+          var_name + "_grad", mfem_variable.getGridFunction().get());
+    }
     else
       getCoefficients().declareVector<mfem::VectorGridFunctionCoefficient>(
           var_name, mfem_variable.getGridFunction().get());
@@ -484,7 +492,7 @@ MFEMProblem::addFunction(const std::string & type,
           }
         });
   }
-  else if ("MFEMParsedFunction" != type)
+  else if ("MFEM" != type.substr(0, 4))
   {
     mooseWarning("Could not identify whether function ",
                  type,
@@ -671,6 +679,12 @@ MFEMProblem::addTransfer(const std::string & transfer_name,
   else
     ExternalProblem::addTransfer(transfer_name, name, parameters);
 }
+
+// std::shared_ptr<mfem::ParComplexGridFunction>
+// MFEMProblem::getComplexGridFunction(const std::string & name)
+// {
+//   return getUserObject<MFEMComplexVariable>(name).getComplexGridFunction();
+// }
 
 void
 MFEMProblem::addInitialCondition(const std::string & ic_name,

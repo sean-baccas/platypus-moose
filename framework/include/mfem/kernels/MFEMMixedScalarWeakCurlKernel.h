@@ -10,7 +10,6 @@
 #ifdef MOOSE_MFEM_ENABLED
 
 #pragma once
-
 #include "MFEMMixedBilinearFormKernel.h"
 
 /**

@@ -51,6 +51,18 @@ omega=10.0
   []
 []
 
+<<<<<<< HEAD
+=======
+[ICs]
+  [A_vector_ic]
+    type = MFEMComplexVectorIC
+    variable = A
+    vector_coefficient_real = '0 0 0'
+    vector_coefficient_imag = A_exact_imag
+  []
+[]
+
+>>>>>>> alexFork/alexanderianblair/hive-mixed-sqlf-experiments
 [BCs]
   [dbc_V]
     type = MFEMComplexScalarDirichletBC

@@ -25,13 +25,16 @@ MFEMMixedSesquilinearFormKernel::validParams()
       "trial_variable",
       "The trial variable this kernel is acting on and which will be solved for. If empty "
       "(default), it will be the same as the test variable.");
+  params.addParam<bool>(
+      "transpose", false, "If true, adds the transpose of the integrator to the system instead.");
   return params;
 }
 
 MFEMMixedSesquilinearFormKernel::MFEMMixedSesquilinearFormKernel(const InputParameters & parameters)
   : MFEMComplexKernel(parameters),
     _trial_var_name(isParamValid("trial_variable") ? getParam<VariableName>("trial_variable")
-                                                   : _test_var_name)
+                                                   : _test_var_name),
+    _transpose(getParam<bool>("transpose"))
 {
 }
 

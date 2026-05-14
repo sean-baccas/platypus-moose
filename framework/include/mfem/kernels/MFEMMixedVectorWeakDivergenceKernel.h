@@ -15,7 +15,7 @@
 
 /**
  * \f[
- * (-k \vec u, \vec \nabla v)
+ * (-k \vec u, \nabla v)
  * \f]
  */
 class MFEMMixedVectorWeakDivergenceKernel : public MFEMMixedBilinearFormKernel
