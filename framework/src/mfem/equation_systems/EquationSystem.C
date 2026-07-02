@@ -636,18 +636,19 @@ EquationSystem::ApplyDomainNLFIntegrators(
   if (kernels_map.Has(test_var_name))
     for (const auto & [trial_var_name, kernels] : kernels_map.GetRef(test_var_name))
       for (auto & kernel : *kernels)
+      {
         if (auto * integ = kernel->createNLIntegrator())
         {
           if (_solver_requires_gradient && (trial_var_name != test_var_name))
             mooseError("Support for off-diagonal MFEM nonlinear domain integrators in conjunction "
-                       "with a nonlinear solver that requires a gradient is not currently "
-                       "implemented. Kernel '",
-                       kernel->name(),
-                       "' contributes to test variable '",
-                       test_var_name,
-                       "' from trial variable '",
-                       trial_var_name,
-                       "'.");
+                        "with a nonlinear solver that requires a gradient is not currently "
+                        "implemented. Kernel '",
+                        kernel->name(),
+                        "' contributes to test variable '",
+                        test_var_name,
+                        "' from trial variable '",
+                        trial_var_name,
+                        "'.");
 
           _non_linear = true;
           if (scale_factor.has_value())
@@ -656,6 +657,12 @@ EquationSystem::ApplyDomainNLFIntegrators(
               ? form->AddDomainIntegrator(std::move(integ), kernel->getSubdomainMarkers())
               : form->AddDomainIntegrator(std::move(integ));
         }
+        else if ( auto * integ_blf = kernel->createBFIntegrator() )
+        {
+          // hackily add it in
+          form->AddDomainIntegrator( std::move(integ_blf) );
+        }
+      }
 }
 
 void
