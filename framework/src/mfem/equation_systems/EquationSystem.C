@@ -455,6 +455,15 @@ EquationSystem::FormJacobianMatrix(const mfem::Vector & u)
 mfem::Operator &
 EquationSystem::GetGradient(const mfem::Vector & u) const
 {
+  // hack to get it to do what i want
+  if (_assembly_level == mfem::AssemblyLevel::PARTIAL and _test_var_names.size() == 1 and
+      _nlfs.Has(_test_var_names.at(0)))
+  {
+    auto test_var_name = _test_var_names.at(0);
+    auto nlf = _nlfs.Get(test_var_name);
+    return nlf->GetGradient(u);
+  }
+
   if (_non_linear)
   {
     if (_assembly_level != mfem::AssemblyLevel::LEGACY)
