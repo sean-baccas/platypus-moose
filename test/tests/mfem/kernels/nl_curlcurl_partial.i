@@ -87,7 +87,7 @@
     variable = h_field
   []
   [mass]
-    type = MFEMVectorFEMassKernel
+    type = MFEMVectorFEMassKernelExtended
     variable = h_field
   []
   [source]
