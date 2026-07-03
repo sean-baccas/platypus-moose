@@ -98,7 +98,7 @@
 
 [Kernels]
   [curlcurl]
-    type = MFEMCurlCurlKernel
+    type = MFEMNLCurlCurlKernel
     variable = e_field
   []
   [mass]
@@ -113,32 +113,33 @@
 []
 
 [Preconditioner]
-  [ams]
-    type = MFEMHypreAMS
-    fespace = HCurlFESpace
-  []
   [matrix_free_ams]
     type = MFEMMatrixFreeAMS
+  []
+  [jacobi]
+    type = MFEMOperatorJacobiSmoother
   []
 []
 
 [Solvers]
-  active = gmres
-  [gmres]
-    type = MFEMHypreGMRES
-    preconditioner = ams
+  [lin]
+    type = MFEMCGSolver
+    preconditioner = jacobi
     l_tol = 1e-12
   []
-  [cg]
-    type = MFEMCGSolver
-    preconditioner = matrix_free_ams
-    l_tol = 1e-12
+  [native_mfem_nl]
+    type = MFEMNewtonNonlinearSolver
+    max_its = 100
+    abs_tol = 1.0e-10
+    rel_tol = 1.0e-9
+    print_level = 1
   []
 []
 
 [Executioner]
   type = MFEMSteady
   device = cpu
+  assembly_level = partial
 []
 
 [Outputs]
