@@ -3,7 +3,7 @@
 
 [Mesh]
   type = MFEMMesh
-  file = ../mesh/small_fichera.mesh
+  file = ../mesh/cube_hex3.e
 []
 
 [Problem]
@@ -123,7 +123,7 @@
 
 [Solvers]
   [lin]
-    type = MFEMCGSolver
+    type = MFEMGMRESSolver
     preconditioner = jacobi
     l_tol = 1e-12
   []
