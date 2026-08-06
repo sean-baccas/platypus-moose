@@ -100,7 +100,7 @@
 
 [Kernels]
   [curlcurl]
-    type = MFEMCurlCurlKernel
+    type = MFEMNLCurlCurlKernel
     variable = e_field
   []
   [mass]
@@ -139,7 +139,7 @@
 [Outputs]
   [ParaViewDataCollection]
     type = MFEMParaViewDataCollection
-    file_base = OutputData/CurlCurl
+    file_base = OutputData/CurlCurl # name is changing so we can use schemadiff test
     vtk_format = ASCII
   []
 []
