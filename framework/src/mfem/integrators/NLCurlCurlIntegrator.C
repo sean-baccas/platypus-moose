@@ -96,6 +96,31 @@ NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & /*x*/,
 {
   PreAssemblySetup(fes);
 
+  if (const auto * const law_coef = dynamic_cast<const MFEMScalarLawCoefficient *>(&_k_coef))
+  {
+    // Curl u is still projected on the host until a device curl kernel exists; the law is
+    // evaluated on the device
+    mfem::CoefficientVector curl_cv(*_qspace, mfem::CoefficientStorage::FULL);
+    curl_cv.Project(_curlu_coef);
+    _pa_grad_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
+
+    // Passing 'true' into getLaw is correct here, for all scenarios. For now, the Law struct
+    // is just an alias for the PowerLaw struct. Its eval() function is an inlined
+    // MFEM_HOST_DEVICE function which takes 2 doubles by reference and calculates k() and
+    // s*k'(s) on the fly using a PowerLaw. But in the future, we'll need to pay more attenion,
+    // when lookups of mfem::Vectors that may be on the host or device come into play, i.e. when
+    // we need to sample a more general parsed function once to evaluate
+    Moose::MFEM::NLCurlCurlGradPASetup(law_coef->lawFunction().getLaw(/*on_device=*/true),
+                                       _quad1D,
+                                       _ne,
+                                       _qspace_ir->GetWeights(),
+                                       _geom->J,
+                                       curl_cv,
+                                       _pa_grad_data,
+                                       _curlu_zero_tol);
+    return;
+  }
+
   mfem::CoefficientVector jac_cv(*_qspace, mfem::CoefficientStorage::SYMMETRIC);
   jac_cv.Project(_curlcurl_jac_matrix_coef);
 
@@ -110,6 +135,30 @@ void
 NLCurlCurlIntegrator::AssemblePA(const mfem::FiniteElementSpace & fes)
 {
   PreAssemblySetup(fes);
+
+  if (const auto * const law_coef = dynamic_cast<const MFEMScalarLawCoefficient *>(&_k_coef))
+  {
+    // Curl u is still projected on the host until a device curl kernel exists; the law is
+    // evaluated on the device
+    mfem::CoefficientVector curl_cv(*_qspace, mfem::CoefficientStorage::FULL);
+    curl_cv.Project(_curlu_coef);
+    _pa_res_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
+
+    // Passing 'true' into getLaw is correct here, for all scenarios. For now, the Law struct
+    // is just an alias for the PowerLaw struct. Its eval() function is an inlined
+    // MFEM_HOST_DEVICE function which takes 2 doubles by reference and calculates k() and
+    // s*k'(s) on the fly using a PowerLaw. But in the future, we'll need to pay more attenion,
+    // when lookups of mfem::Vectors that may be on the host or device come into play, i.e. when
+    // we need to sample a more general parsed function once to evaluate
+    Moose::MFEM::NLCurlCurlPASetup(law_coef->lawFunction().getLaw(/*on_device=*/true),
+                                   _quad1D,
+                                   _ne,
+                                   _qspace_ir->GetWeights(),
+                                   _geom->J,
+                                   curl_cv,
+                                   _pa_res_data);
+    return;
+  }
 
   mfem::CoefficientVector k_cv(*_qspace, mfem::CoefficientStorage::FULL);
   k_cv.Project(_k_coef);

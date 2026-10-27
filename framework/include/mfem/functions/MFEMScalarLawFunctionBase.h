@@ -15,9 +15,9 @@
 class MFEMScalarLawFunctionBase : public Function
 {
 public:
-  /// Host-side descriptor of any supported law, dispatched with std::visit
-  // using Law = std::variant<Moose::MFEM::PowerLaw, Moose::MFEM::TabulatedLaw>; // not needed for now, just use PowerLaw
-  using Law = Moose::MFEM::PowerLaw;
+  // This should be a variant, but for now we just point it at the alias
+  // statement in ScalarLaws.h
+  using Law = Moose::MFEM::Law;
 
   static InputParameters validParams();
 

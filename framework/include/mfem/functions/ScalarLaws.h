@@ -1,4 +1,5 @@
-#ifdef MOOSE_MFEM_ENABLED
+// no ifdef moose enabled here, since we need this to
+// be compiled in .cxx file
 
 #pragma once
 
@@ -32,6 +33,9 @@ PowerLaw::eval(const mfem::real_t s, mfem::real_t & k, mfem::real_t & s_dk_ds) c
   s_dk_ds = n * b_sn;
 }
 
-} // namespace Moose::MFEM
+// The law type the PA setup kernels are compiled for
+// In future, we will be using std::variant to give us the option
+// for different kinds of Coefficient Laws.
+using Law = PowerLaw;
 
-#endif
+} // namespace Moose::MFEM

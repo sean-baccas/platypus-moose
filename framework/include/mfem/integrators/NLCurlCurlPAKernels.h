@@ -13,6 +13,7 @@
 #include "mfem.hpp"
 #include "mfem/fem/integ/bilininteg_hcurl_kernels.hpp"
 #include "libmesh/restore_warnings.h"
+#include "ScalarLaws.h"
 
 /*
 All this header does is declare the functions that will hold
@@ -63,6 +64,8 @@ void
 NLCurlCurlPhysicalCurl3D(const int Q1D, const int NE, const mfem::Vector & j, mfem::Vector & curl);
 
 // The params are:
+// const PowerLaw law - this struct has an eval() method to evaluate k().
+//    Eventually, we plan to make this more general and support e.g. tabulated function
 // const int Q1D - the number of quadpoints in each dimension
 // (we skip coeff_dim, as we expect the functions to be scalar functions)
 // const int NE - the number of elements
@@ -71,21 +74,19 @@ NLCurlCurlPhysicalCurl3D(const int Q1D, const int NE, const mfem::Vector & j, mf
 //    9 * number of elements * number of quadpoints, i.e. one 3x3 matrix for each quadpoint
 //    in each element
 // const Vector& c - this is the curl, evaluated at each qpoint
-// Vector & k_coeff  - reference to the vector of k(s) evaluated at each quadpoint. length is
-//    one per quadpoint per element
-// Vector & dk_coeff - ditto for s * k'(s)
 // Vector & op - this is the diagonal operator
-void NLCurlCurlGradPASetup(const int Q1D,
+void NLCurlCurlGradPASetup(const Law law,
+                           const int Q1D,
                            const int NE,
                            const mfem::Array<mfem::real_t> & w,
                            const mfem::Vector & j,
                            const mfem::Vector & c,
-                           mfem::Vector & k_coeff,
-                           mfem::Vector & dk_coeff,
                            mfem::Vector & op,
                            mfem::real_t curlu_zero_tol);
 
 // Same, but creates the op used for AddMultPA
+// const PowerLaw law - this struct has an eval() method to evaluate k().
+//    Eventually, we plan to make this more general and support e.g. tabulated function
 // const int Q1D - the number of quadpoints in each dimension
 // (we skip coeff_dim, as we expect the functions to be scalar functions)
 // const int NE - the number of elements
@@ -93,14 +94,14 @@ void NLCurlCurlGradPASetup(const int Q1D,
 // const Vector &j - the jacobian matrices in the form of a flat vector. Its length is
 //    9 * number of elements * number of quadpoints, i.e. one 3x3 matrix for each quadpoint
 //    in each element
-// Vector & k_coeff  - reference to the vector of k(s) evaluated at each quadpoint. length is
-//    one per quadpoint per element
+// const Vector& c - this is the curl, evaluated at each qpoint
 // Vector & op - this is the diagonal operator
-void NLCurlCurlPASetup(const int Q1D,
+void NLCurlCurlPASetup(const Law law,
+                       const int Q1D,
                        const int NE,
                        const mfem::Array<mfem::real_t> & w,
                        const mfem::Vector & j,
-                       mfem::Vector & k_coeff,
+                       const mfem::Vector & c,
                        mfem::Vector & op);
 
 } // namespace Moose::MFEM

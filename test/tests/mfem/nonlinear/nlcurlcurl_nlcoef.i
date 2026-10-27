@@ -139,6 +139,7 @@
 []
 
 [Outputs]
+  perf_graph = true
   [CSV]
     type = CSV
     file_base = OutputData/MFEMNonLinearCurlCurl
