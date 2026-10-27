@@ -1,0 +1,10 @@
+[Tests]
+  design = '/MFEMNLCurlCurlKernel.md'
+  issues = '#33948'
+
+  [physical_curl]
+    type = GoogleTest
+    unit_test = MFEMNLCurlCurlPAKernelsTest.PhysicalCurlMatchesCurlGridFunctionCoefficient
+    requirement = 'The system shall evaluate the curl of a Nedelec field at the quadrature points of curved hexahedral elements with a sum-factorized kernel that agrees with the element-by-element evaluation, for element orders 1 through 3.'
+  []
+[]

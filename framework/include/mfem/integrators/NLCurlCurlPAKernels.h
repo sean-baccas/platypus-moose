@@ -26,6 +26,42 @@ include the definition for this macro.
 namespace Moose::MFEM
 {
 
+// Evaluates the reference-element curl of an ND field on hexahedra at the tensor-product
+// quadrature points, using sum factorization. This is the curl stage of
+// mfem::internal::PACurlCurlApply3D. The physical curl is J c / det(J).
+// The params are:
+// const int D1D - the number of closed 1D basis functions (ND order + 1)
+// const int Q1D - the number of quadpoints in each dimension
+// const int NE - the number of elements
+// const Array<real_t> & bo - open 1D basis values at the quadpoints (DofToQuadOpen B)
+// const Array<real_t> & bc - closed 1D basis values at the quadpoints (DofToQuad B)
+// const Array<real_t> & gc - closed 1D basis derivatives at the quadpoints (DofToQuad G)
+// const Vector & x - the field as an E-vector in ElementDofOrdering::LEXICOGRAPHIC, which is
+//    what NonlinearForm partial assembly passes to AddMultPA and AssembleGradPA
+// Vector & curl - the reference curl, laid out as (3, NQ, NE) with the quadpoint index
+//    q = qx + Q1D * (qy + Q1D * qz). This matches the layout of a vector QuadratureFunction and
+//    the quadpoint ordering of GeometricFactors. Must be sized 3 * Q1D^3 * NE by the caller
+void NLCurlCurlReferenceCurl3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const mfem::Array<mfem::real_t> & bo,
+                               const mfem::Array<mfem::real_t> & bc,
+                               const mfem::Array<mfem::real_t> & gc,
+                               const mfem::Vector & x,
+                               mfem::Vector & curl);
+
+// Maps the reference curl from NLCurlCurlReferenceCurl3D to the physical curl in place, using
+// (curl u)(F(x)) = J curl_hat(u_hat)(x) / det(J) (Monk, Finite Element Methods for Maxwell's
+// Equations, eq. 3.76).
+// The params are:
+// const int Q1D - the number of quadpoints in each dimension
+// const int NE - the number of elements
+// const Vector & j - the jacobian matrices from GeometricFactors, laid out as (NQ, 3, 3, NE)
+// Vector & curl - on entry the reference curl, on exit the physical curl, laid out as
+//    (3, NQ, NE)
+void
+NLCurlCurlPhysicalCurl3D(const int Q1D, const int NE, const mfem::Vector & j, mfem::Vector & curl);
+
 // The params are:
 // const int Q1D - the number of quadpoints in each dimension
 // (we skip coeff_dim, as we expect the functions to be scalar functions)

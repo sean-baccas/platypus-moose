@@ -13,7 +13,241 @@
 namespace Moose::MFEM
 {
 
-// For now, no multithreading. this will be very slow
+// TODO: write a unit test that checks this at multiple orders
+// on a non-affine mesh
+//
+// Note: x is supposed to be lemenet vector
+void
+NLCurlCurlReferenceCurl3D(const int D1D,
+                          const int Q1D,
+                          const int NE,
+                          const mfem::Array<mfem::real_t> & bo,
+                          const mfem::Array<mfem::real_t> & bc,
+                          const mfem::Array<mfem::real_t> & gc,
+                          const mfem::Vector & x,
+                          mfem::Vector & curl)
+{
+  MFEM_VERIFY(D1D <= mfem::DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "D1D > HCURL_MAX_D1D");
+  MFEM_VERIFY(Q1D <= mfem::DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Q1D > HCURL_MAX_Q1D");
+
+  auto Bo = mfem::Reshape(bo.Read(), Q1D, D1D - 1);
+  auto Bc = mfem::Reshape(bc.Read(), Q1D, D1D);
+  auto Gc = mfem::Reshape(gc.Read(), Q1D, D1D);
+  auto X = mfem::Reshape(x.Read(), 3 * (D1D - 1) * D1D * D1D, NE);
+  auto C = mfem::Reshape(curl.Write(), 3, Q1D, Q1D, Q1D, NE);
+
+  // One thread per element. Each component of u has one open direction (D1D - 1 basis
+  // functions) and two closed directions (D1D); the components are stored one after another in
+  // the E-vector, which osc offsets into.
+  mfem::forall(NE,
+               [=] MFEM_HOST_DEVICE(int e)
+               {
+                 constexpr int MQ1D = mfem::DofQuadLimits::HCURL_MAX_Q1D;
+
+                 for (int qz = 0; qz < Q1D; ++qz)
+                   for (int qy = 0; qy < Q1D; ++qy)
+                     for (int qx = 0; qx < Q1D; ++qx)
+                       for (int c = 0; c < 3; ++c)
+                         C(c, qx, qy, qz, e) = 0.0;
+
+                 int osc = 0;
+
+                 {
+                   // x component: the reference curl is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+                   const int D1Dz = D1D;
+                   const int D1Dy = D1D;
+                   const int D1Dx = D1D - 1;
+
+                   for (int dz = 0; dz < D1Dz; ++dz)
+                   {
+                     mfem::real_t gradXY[MQ1D][MQ1D][2];
+                     for (int qy = 0; qy < Q1D; ++qy)
+                       for (int qx = 0; qx < Q1D; ++qx)
+                         gradXY[qy][qx][0] = gradXY[qy][qx][1] = 0.0;
+
+                     for (int dy = 0; dy < D1Dy; ++dy)
+                     {
+                       mfem::real_t massX[MQ1D];
+                       for (int qx = 0; qx < Q1D; ++qx)
+                         massX[qx] = 0.0;
+
+                       for (int dx = 0; dx < D1Dx; ++dx)
+                       {
+                         const mfem::real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                         for (int qx = 0; qx < Q1D; ++qx)
+                           massX[qx] += t * Bo(qx, dx);
+                       }
+
+                       for (int qy = 0; qy < Q1D; ++qy)
+                       {
+                         const mfem::real_t wy = Bc(qy, dy);
+                         const mfem::real_t wDy = Gc(qy, dy);
+                         for (int qx = 0; qx < Q1D; ++qx)
+                         {
+                           gradXY[qy][qx][0] += massX[qx] * wDy;
+                           gradXY[qy][qx][1] += massX[qx] * wy;
+                         }
+                       }
+                     }
+
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                       const mfem::real_t wz = Bc(qz, dz);
+                       const mfem::real_t wDz = Gc(qz, dz);
+                       for (int qy = 0; qy < Q1D; ++qy)
+                         for (int qx = 0; qx < Q1D; ++qx)
+                         {
+                           C(1, qx, qy, qz, e) += gradXY[qy][qx][1] * wDz; // (u_0)_{x_2}
+                           C(2, qx, qy, qz, e) -= gradXY[qy][qx][0] * wz;  // -(u_0)_{x_1}
+                         }
+                     }
+                   }
+
+                   osc += D1Dx * D1Dy * D1Dz;
+                 }
+
+                 {
+                   // y component: the reference curl is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+                   const int D1Dz = D1D;
+                   const int D1Dy = D1D - 1;
+                   const int D1Dx = D1D;
+
+                   for (int dz = 0; dz < D1Dz; ++dz)
+                   {
+                     mfem::real_t gradXY[MQ1D][MQ1D][2];
+                     for (int qy = 0; qy < Q1D; ++qy)
+                       for (int qx = 0; qx < Q1D; ++qx)
+                         gradXY[qy][qx][0] = gradXY[qy][qx][1] = 0.0;
+
+                     for (int dx = 0; dx < D1Dx; ++dx)
+                     {
+                       mfem::real_t massY[MQ1D];
+                       for (int qy = 0; qy < Q1D; ++qy)
+                         massY[qy] = 0.0;
+
+                       for (int dy = 0; dy < D1Dy; ++dy)
+                       {
+                         const mfem::real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                         for (int qy = 0; qy < Q1D; ++qy)
+                           massY[qy] += t * Bo(qy, dy);
+                       }
+
+                       for (int qx = 0; qx < Q1D; ++qx)
+                       {
+                         const mfem::real_t wx = Bc(qx, dx);
+                         const mfem::real_t wDx = Gc(qx, dx);
+                         for (int qy = 0; qy < Q1D; ++qy)
+                         {
+                           gradXY[qy][qx][0] += wDx * massY[qy];
+                           gradXY[qy][qx][1] += wx * massY[qy];
+                         }
+                       }
+                     }
+
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                       const mfem::real_t wz = Bc(qz, dz);
+                       const mfem::real_t wDz = Gc(qz, dz);
+                       for (int qy = 0; qy < Q1D; ++qy)
+                         for (int qx = 0; qx < Q1D; ++qx)
+                         {
+                           C(0, qx, qy, qz, e) -= gradXY[qy][qx][1] * wDz; // -(u_1)_{x_2}
+                           C(2, qx, qy, qz, e) += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
+                         }
+                     }
+                   }
+
+                   osc += D1Dx * D1Dy * D1Dz;
+                 }
+
+                 {
+                   // z component: the reference curl is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+                   const int D1Dz = D1D - 1;
+                   const int D1Dy = D1D;
+                   const int D1Dx = D1D;
+
+                   for (int dx = 0; dx < D1Dx; ++dx)
+                   {
+                     mfem::real_t gradYZ[MQ1D][MQ1D][2];
+                     for (int qz = 0; qz < Q1D; ++qz)
+                       for (int qy = 0; qy < Q1D; ++qy)
+                         gradYZ[qz][qy][0] = gradYZ[qz][qy][1] = 0.0;
+
+                     for (int dy = 0; dy < D1Dy; ++dy)
+                     {
+                       mfem::real_t massZ[MQ1D];
+                       for (int qz = 0; qz < Q1D; ++qz)
+                         massZ[qz] = 0.0;
+
+                       for (int dz = 0; dz < D1Dz; ++dz)
+                       {
+                         const mfem::real_t t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                         for (int qz = 0; qz < Q1D; ++qz)
+                           massZ[qz] += t * Bo(qz, dz);
+                       }
+
+                       for (int qy = 0; qy < Q1D; ++qy)
+                       {
+                         const mfem::real_t wy = Bc(qy, dy);
+                         const mfem::real_t wDy = Gc(qy, dy);
+                         for (int qz = 0; qz < Q1D; ++qz)
+                         {
+                           gradYZ[qz][qy][0] += massZ[qz] * wy;
+                           gradYZ[qz][qy][1] += massZ[qz] * wDy;
+                         }
+                       }
+                     }
+
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                       const mfem::real_t wx = Bc(qx, dx);
+                       const mfem::real_t wDx = Gc(qx, dx);
+                       for (int qy = 0; qy < Q1D; ++qy)
+                         for (int qz = 0; qz < Q1D; ++qz)
+                         {
+                           C(0, qx, qy, qz, e) += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
+                           C(1, qx, qy, qz, e) -= gradYZ[qz][qy][0] * wDx; // -(u_2)_{x_0}
+                         }
+                     }
+                   }
+                 }
+               });
+}
+
+void
+NLCurlCurlPhysicalCurl3D(const int Q1D, const int NE, const mfem::Vector & j, mfem::Vector & curl)
+{
+  const int NQ = Q1D * Q1D * Q1D;
+  auto J = mfem::Reshape(j.Read(), NQ, 3, 3, NE);
+  auto C = mfem::Reshape(curl.ReadWrite(), 3, NQ, NE);
+
+  mfem::forall(NE * NQ,
+               [=] MFEM_HOST_DEVICE(int idx)
+               {
+                 const int q = idx % NQ;
+                 const int e = idx / NQ;
+                 const mfem::real_t J11 = J(q, 0, 0, e);
+                 const mfem::real_t J21 = J(q, 1, 0, e);
+                 const mfem::real_t J31 = J(q, 2, 0, e);
+                 const mfem::real_t J12 = J(q, 0, 1, e);
+                 const mfem::real_t J22 = J(q, 1, 1, e);
+                 const mfem::real_t J32 = J(q, 2, 1, e);
+                 const mfem::real_t J13 = J(q, 0, 2, e);
+                 const mfem::real_t J23 = J(q, 1, 2, e);
+                 const mfem::real_t J33 = J(q, 2, 2, e);
+                 const mfem::real_t inv_detJ =
+                     1.0 / (J11 * (J22 * J33 - J32 * J23) - J21 * (J12 * J33 - J32 * J13) +
+                            J31 * (J12 * J23 - J22 * J13));
+
+                 const mfem::real_t c1 = C(0, q, e);
+                 const mfem::real_t c2 = C(1, q, e);
+                 const mfem::real_t c3 = C(2, q, e);
+                 C(0, q, e) = inv_detJ * (J11 * c1 + J12 * c2 + J13 * c3);
+                 C(1, q, e) = inv_detJ * (J21 * c1 + J22 * c2 + J23 * c3);
+                 C(2, q, e) = inv_detJ * (J31 * c1 + J32 * c2 + J33 * c3);
+               });
+}
+
 void
 NLCurlCurlGradPASetup(const int Q1D,
                       const int NE,
