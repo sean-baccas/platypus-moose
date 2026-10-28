@@ -29,7 +29,7 @@ SolverBase::validParams()
 }
 
 SolverBase::SolverBase(const InputParameters & parameters)
-  : MFEMObject(parameters), _solver{nullptr}
+  : MFEMObject(parameters), PerfGraphInterface(this), _solver{nullptr}
 {
 }
 

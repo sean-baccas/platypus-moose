@@ -31,6 +31,8 @@ protected:
 private:
   // Constructs the mfem::MatrixFreeAMS solver for the given operator.
   void BuildSolver(const mfem::Operator & op);
+  // Applies the mfem::MatrixFreeAMS solver built by BuildSolver().
+  void ApplySolver(const mfem::Vector & x, mfem::Vector & y);
 
   /**
    * Rebuilds the mfem::MatrixFreeAMS solver on every SetOperator call. mfem::MatrixFreeAMS keeps a

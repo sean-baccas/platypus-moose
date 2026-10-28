@@ -13,6 +13,10 @@
 #include "MFEMLinearSolverBase.h"
 #include "CoefficientManager.h"
 #include "libmesh/int_range.h"
+#include "PerfGraph.h"
+#include "PerfGraphRegistry.h"
+#include "PerfGuard.h"
+#include <optional>
 
 namespace Moose::MFEM
 {
@@ -381,10 +385,17 @@ EquationSystem::FormSystem(mfem::BlockVector & trueX, mfem::BlockVector & trueRH
 void
 EquationSystem::Mult(const mfem::Vector & sol, mfem::Vector & residual) const
 {
+  static const PerfID perf_id =
+      moose::internal::getPerfGraphRegistry().registerSection("EquationSystem::residual", 3);
+  std::optional<PerfGuard> guard;
+  if (_perf_graph)
+    guard.emplace(*_perf_graph, perf_id);
+
   _linear_operator->Mult(sol, residual);
 
   if (IsNonlinear())
     ComputeNonlinearResidual(sol, residual);
+  MFEM_DEVICE_SYNC;
 }
 
 void
@@ -400,14 +411,21 @@ EquationSystem::ComputeNonlinearResidual(const mfem::Vector & sol, mfem::Vector 
   {
     auto & test_var_name = _test_var_names.at(i);
     auto nlf = _nlfs.GetShared(test_var_name);
-    // With partial assembly, Mult() applies whatever AssemblePA stored at the last Setup(), and
-    // unlike AssembleGradPA (re-run by every GetGradient call) nothing refreshes it. Integrators
-    // whose PA data depends on the solution, e.g. NLCurlCurlIntegrator through k(|curl u|), must
-    // be re-assembled at the current state, which the grid functions hold as of the
-    // SetTrialVariablesFromTrueVectors call above. This is a no-op for legacy assembly and for
-    // forms without integrators, since the underlying NonlinearForm::ext will be a nullptr
-    nlf->Setup();
-    nlf->AddMult(block_solution.GetBlock(i), block_residual.GetBlock(i));
+    {
+      static const PerfID perf_id = moose::internal::getPerfGraphRegistry().registerSection(
+          "EquationSystem::residual_setup", 3);
+      std::optional<PerfGuard> guard;
+      if (_perf_graph)
+        guard.emplace(*_perf_graph, perf_id);
+      nlf->Setup();
+      MFEM_DEVICE_SYNC;
+    }
+
+    {
+      // same pattern, section "EquationSystem::residual_action"
+      nlf->AddMult(block_solution.GetBlock(i), block_residual.GetBlock(i));
+      MFEM_DEVICE_SYNC;
+    }
     block_residual.GetBlock(i).SyncAliasMemory(block_residual);
   }
 }
@@ -455,6 +473,13 @@ EquationSystem::FormJacobianMatrix(const mfem::Vector & u)
 mfem::Operator &
 EquationSystem::GetGradient(const mfem::Vector & u) const
 {
+  static const PerfID perf_id =
+      moose::internal::getPerfGraphRegistry().registerSection("EquationSystem::jacobian", 3);
+
+  std::optional<PerfGuard> guard;
+  if (_perf_graph)
+    guard.emplace(*_perf_graph, perf_id);
+
   _linearization_point = &u;
 
   if (IsNonlinear())
@@ -471,7 +496,9 @@ EquationSystem::GetGradient(const mfem::Vector & u) const
   else
     _jacobian = _linear_operator;
 
-  return *_jacobian;
+  MFEM_DEVICE_SYNC;
+  _timed_jacobian = std::make_unique<TimedJacobian>(*_jacobian, _perf_graph);
+  return *_timed_jacobian;
 }
 
 void
@@ -496,7 +523,7 @@ EquationSystem::FormJacobianOperator(const mfem::Vector & u) const
   // guard against dereferencing nullptr here.
   mooseAssert(_linear_operator.Ptr(), "Bilinear Operator is null!");
 
-  _jacobian.Reset(new JacobianSumOperator(nlf_grad, _linear_operator.Ptr(), nlf));
+  _jacobian.Reset(new JacobianSumOperator(nlf_grad, _linear_operator.Ptr(), nlf, _perf_graph));
 }
 
 void

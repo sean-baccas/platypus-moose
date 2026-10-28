@@ -140,9 +140,13 @@
 []
 
 [Outputs]
-  perf_graph = true
   [CSV]
     type = CSV
     file_base = OutputData/MFEMNonLinearCurlCurl
+  []
+  [pgraph]
+    type = PerfGraphOutput
+    level = 3
+    heaviest_sections = 10
   []
 []

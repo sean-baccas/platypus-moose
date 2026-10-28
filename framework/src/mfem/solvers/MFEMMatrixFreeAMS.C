@@ -106,8 +106,17 @@ MFEMMatrixFreeAMS::ConstructSolver()
 void
 MFEMMatrixFreeAMS::BuildSolver(const mfem::Operator & op)
 {
-  _smoother->SetOperator(op);
+  {
+    // The Jacobi smoother assembles the diagonal of op: AssembleGradDiagonalPA plus the mass
+    // diagonal under partial assembly, the HypreParMatrix diagonal under legacy assembly
+    TIME_SECTION("smoother_setup", 3);
+    _smoother->SetOperator(op);
+    MFEM_DEVICE_SYNC;
+  }
 
+  // Builds the LOR discretization, evaluating alpha_coefficient and beta_coefficient on the host,
+  // and sets up the hypre auxiliary-space solvers
+  TIME_SECTION("setup", 3);
   _matrix_free_ams = std::make_unique<mfem::MatrixFreeAMS>(*_a,
                                                            const_cast<mfem::Operator &>(op),
                                                            *_a->ParFESpace(),
@@ -118,6 +127,16 @@ MFEMMatrixFreeAMS::BuildSolver(const mfem::Operator & op)
                                                            _inner_pi_its,
                                                            _inner_g_its,
                                                            new SmootherReference(*_smoother));
+  // Kernel launches are asynchronous; wait for them so their time lands in this section
+  MFEM_DEVICE_SYNC;
+}
+
+void
+MFEMMatrixFreeAMS::ApplySolver(const mfem::Vector & x, mfem::Vector & y)
+{
+  TIME_SECTION("apply", 3);
+  _matrix_free_ams->Mult(x, y);
+  MFEM_DEVICE_SYNC;
 }
 
 void
@@ -133,7 +152,7 @@ MFEMMatrixFreeAMS::Rebuilder::Mult(const mfem::Vector & x, mfem::Vector & y) con
 {
   mooseAssert(_owner._matrix_free_ams,
               "MatrixFreeAMS preconditioner was not initialized with an operator before use.");
-  _owner._matrix_free_ams->Mult(x, y);
+  _owner.ApplySolver(x, y);
 }
 
 template <>

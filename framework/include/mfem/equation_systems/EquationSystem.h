@@ -27,6 +27,38 @@ namespace Moose::MFEM
 {
 class CoefficientManager;
 
+/// Forwards to the Jacobian and times its action, so legacy and partial assembly share one section
+class TimedJacobian : public mfem::Operator
+{
+public:
+  TimedJacobian(const mfem::Operator & op, PerfGraph * perf_graph)
+    : mfem::Operator(op.Height(), op.Width()), _op(op), _perf_graph(perf_graph)
+  {
+  }
+
+  void Mult(const mfem::Vector & x, mfem::Vector & y) const override
+  {
+    static const PerfID perf_id = moose::internal::getPerfGraphRegistry().registerSection(
+        "EquationSystem::jacobian_action", 3);
+    std::optional<PerfGuard> guard;
+    if (_perf_graph)
+      guard.emplace(*_perf_graph, perf_id);
+    _op.Mult(x, y);
+    // Kernel launches are asynchronous; wait for them so their time lands in this section
+    MFEM_DEVICE_SYNC;
+  }
+
+  /// The Jacobi smoother assembles its diagonal through this
+  void AssembleDiagonal(mfem::Vector & diag) const override { _op.AssembleDiagonal(diag); }
+
+  /// Krylov solvers allocate their work vectors in this memory class
+  mfem::MemoryClass GetMemoryClass() const override { return _op.GetMemoryClass(); }
+
+private:
+  const mfem::Operator & _op;
+  PerfGraph * const _perf_graph;
+};
+
 /**
  * Owns the weak-form mathematics of a MOOSE MFEM problem.
  *
@@ -157,6 +189,9 @@ public:
 
   /// Build all forms comprising this EquationSystem
   virtual void BuildEquationSystem();
+
+  /// Times the residual, Jacobian setup and Jacobian action in this PerfGraph
+  void SetPerfGraph(PerfGraph & perf_graph) { _perf_graph = &perf_graph; }
 
 protected:
   /// Add coupled variable to EquationSystem.
@@ -344,6 +379,10 @@ protected:
   // Coefficient manager notified when trial variables are updated, so that stored projections
   // of solution-dependent coefficients are invalidated.
   CoefficientManager * _coefficient_manager = nullptr;
+  /// PerfGraph timing the solve; null when the system is built outside an MFEMProblem
+  PerfGraph * _perf_graph = nullptr;
+  /// Timing wrapper around _jacobian handed to the linear solver
+  mutable std::unique_ptr<TimedJacobian> _timed_jacobian;
 
 private:
   /// Disallowed inherited method

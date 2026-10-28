@@ -38,6 +38,7 @@ std::shared_ptr<Moose::MFEM::EquationSystem>
 MFEMWeakFormBase::createEquationSystem()
 {
   _equation_system = makeEquationSystem();
+  _equation_system->SetPerfGraph(getMooseApp().perfGraph());
   initEquationSystem();
   return _equation_system;
 }

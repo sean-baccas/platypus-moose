@@ -13,6 +13,10 @@
 #include "mfem.hpp"
 #include "libmesh/restore_warnings.h"
 #include "MooseError.h"
+#include "MooseError.h"
+#include "PerfGraphRegistry.h"
+#include "PerfGuard.h"
+#include <optional>
 
 namespace Moose::MFEM
 {
@@ -27,8 +31,14 @@ class JacobianSumOperator : public mfem::Operator
 public:
   JacobianSumOperator(const mfem::Operator * A,
                       const mfem::Operator * B,
-                      mfem::ParNonlinearForm * nlf)
-    : Operator(A->Height(), A->Width()), _A(A), _B(B), _z(A->Height()), _nlf(nlf)
+                      mfem::ParNonlinearForm * nlf,
+                      PerfGraph * perf_graph)
+    : Operator(A->Height(), A->Width()),
+      _A(A),
+      _B(B),
+      _z(A->Height()),
+      _nlf(nlf),
+      _perf_graph(perf_graph)
   {
     mooseAssert(A->Width() == B->Width(), "Operator Widths must match");
     mooseAssert(A->Height() == B->Height(), "Operator Heights must match");
@@ -41,10 +51,18 @@ public:
 
   void Mult(const mfem::Vector & x, mfem::Vector & y) const override
   {
+    static const PerfID perf_id =
+        moose::internal::getPerfGraphRegistry().registerSection("JacobianSumOperator::Mult", 3);
+    std::optional<PerfGuard> guard;
+    if (_perf_graph)
+      guard.emplace(*_perf_graph, perf_id);
+
     _z.SetSize(_A->Height());
     _A->Mult(x, _z);
     _B->Mult(x, y);
     add(_z, y, y);
+    // Kernel launches are asynchronous; wait for them so their time lands in this section
+    MFEM_DEVICE_SYNC;
   }
 
   void MultTranspose(const mfem::Vector & x, mfem::Vector & y) const override
@@ -122,6 +140,7 @@ private:
   const mfem::Operator *_A, *_B;
   mutable mfem::Vector _z;
   mfem::ParNonlinearForm * _nlf; // not owned
+  PerfGraph * const _perf_graph;
 };
 
 } // namespace Moose::MFEM

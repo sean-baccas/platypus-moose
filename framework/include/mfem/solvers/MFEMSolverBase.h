@@ -12,13 +12,14 @@
 #pragma once
 
 #include "MFEMObject.h"
+#include "PerfGraphInterface.h"
 
 namespace Moose::MFEM
 {
 /**
  * Base class for wrapping mfem::Solver-derived classes.
  */
-class SolverBase : public MFEMObject
+class SolverBase : public MFEMObject, public PerfGraphInterface
 {
 public:
   static InputParameters validParams();
