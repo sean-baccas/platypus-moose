@@ -13,6 +13,8 @@
 #include "MFEMVectorMagnitudeCoefficient.h"
 #include "MooseError.h"
 
+class MFEMScalarLawCoefficient;
+
 namespace Moose::MFEM
 {
 /**
@@ -77,13 +79,25 @@ public:
   /// ensures that _qspace_ir is set correctly.
   void PreAssemblySetup(const mfem::FiniteElementSpace & fes);
 
+  // Evaluates the physical curl of the state E-vector x at the quadpoints into _curl_qp
+  void ComputeCurlAtQuadPoints(const mfem::Vector & x) const;
+
 protected:
   mfem::CurlCurlIntegrator _curlcurl_res_integ; // (k(|curl u|) curl u, curl phi_j)
   NLCurlCurlJacMatrixCoefficient _curlcurl_jac_matrix_coef;
   mfem::CurlCurlIntegrator _curlcurl_jac_integ;
 
   // Extra stuff we need for the PA extension
-  mfem::Vector _pa_res_data, _pa_grad_data;
+  mfem::Vector _pa_grad_data;
+
+  // make the res data mutable, so we can construct it on-the-fly with the current solution
+  // as an E-vector during AddMultPA
+  mutable mfem::Vector _pa_res_data;
+
+  // Similarly, we introduce mutable vectors for the curl of the current state (evaluated on
+  // quadpoints) and ditto for the current k(s) evaluated on quadpoints
+  mutable mfem::Vector _curl_qp;
+
   const mfem::DofToQuad * _mapsO;       ///< Not owned. DOF-to-quad map, open.
   const mfem::DofToQuad * _mapsC;       ///< Not owned. DOF-to-quad map, closed.
   const mfem::GeometricFactors * _geom; ///< Not owned
@@ -115,6 +129,11 @@ protected:
   const mfem::Mesh * _qspace_mesh = nullptr;
   long _qspace_mesh_sequence = -1;
   const mfem::IntegrationRule * _qspace_ir = nullptr;
+
+  // If this pointer is non-null, then we can evaluate k(s) and sk'(s) on the device. We init
+  // this one in the constructor with a dynamic cast from the k coefficient. It has an eval()
+  // method that handles both the k and the sk'(s)
+  const MFEMScalarLawCoefficient * const _law_coef;
 };
 }
 

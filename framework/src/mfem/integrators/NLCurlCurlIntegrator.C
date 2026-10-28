@@ -12,6 +12,8 @@
 
 #include "NLCurlCurlIntegrator.h"
 #include "NLCurlCurlPAKernels.h"
+#include "MFEMScalarLawFunctionBase.h"
+#include "MFEMScalarLawCoefficient.h"
 
 namespace Moose::MFEM
 {
@@ -66,7 +68,8 @@ NLCurlCurlIntegrator::NLCurlCurlIntegrator(mfem::Coefficient & k,
     _k_coef(k),
     _curlu_dk_dcurlu_coef(curlu_dk_dcurlu),
     _curlu_coef(curlu),
-    _curlu_zero_tol(curlu_zero_tol)
+    _curlu_zero_tol(curlu_zero_tol),
+    _law_coef(dynamic_cast<const MFEMScalarLawCoefficient*>(&k))
 {
 }
 
@@ -88,34 +91,22 @@ NLCurlCurlIntegrator::AssembleElementGrad(const mfem::FiniteElement & el,
   _curlcurl_jac_integ.AssembleElementGrad(el, Tr, elfun, elmat);
 }
 
-// The first argument is the current state vector, which we actually don't need, since u appears
-// only embedded in the function of k and as a curl.
 void
-NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & /*x*/,
+NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & x,
                                      const mfem::FiniteElementSpace & fes)
 {
   PreAssemblySetup(fes);
+  _pa_grad_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
 
-  if (const auto * const law_coef = dynamic_cast<const MFEMScalarLawCoefficient *>(&_k_coef))
+  if (_law_coef)
   {
-    // Curl u is still projected on the host until a device curl kernel exists; the law is
-    // evaluated on the device
-    mfem::CoefficientVector curl_cv(*_qspace, mfem::CoefficientStorage::FULL);
-    curl_cv.Project(_curlu_coef);
-    _pa_grad_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
-
-    // Passing 'true' into getLaw is correct here, for all scenarios. For now, the Law struct
-    // is just an alias for the PowerLaw struct. Its eval() function is an inlined
-    // MFEM_HOST_DEVICE function which takes 2 doubles by reference and calculates k() and
-    // s*k'(s) on the fly using a PowerLaw. But in the future, we'll need to pay more attenion,
-    // when lookups of mfem::Vectors that may be on the host or device come into play, i.e. when
-    // we need to sample a more general parsed function once to evaluate
-    Moose::MFEM::NLCurlCurlGradPASetup(law_coef->lawFunction().getLaw(/*on_device=*/true),
+    ComputeCurlAtQuadPoints(x);
+    Moose::MFEM::NLCurlCurlGradPASetup(_law_coef->lawFunction().getLaw(/*on_device=*/true),
                                        _quad1D,
                                        _ne,
                                        _qspace_ir->GetWeights(),
                                        _geom->J,
-                                       curl_cv,
+                                       _curl_qp,
                                        _pa_grad_data,
                                        _curlu_zero_tol);
     return;
@@ -124,45 +115,26 @@ NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & /*x*/,
   mfem::CoefficientVector jac_cv(*_qspace, mfem::CoefficientStorage::SYMMETRIC);
   jac_cv.Project(_curlcurl_jac_matrix_coef);
 
-  _pa_grad_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
   mfem::internal::PACurlCurlSetup3D(
       _quad1D, jac_cv.GetVDim(), _ne, _qspace_ir->GetWeights(), _geom->J, jac_cv, _pa_grad_data);
 }
 
-// This mirrors AssembleGradPA exactly. We are performing redundant work here, and we
-// will fix that in subsequent PRs.
 void
 NLCurlCurlIntegrator::AssemblePA(const mfem::FiniteElementSpace & fes)
 {
+  // We delay projecting k onto qpoints until AddMultPA. By then, we
+  // have access to the current state x as an E-vector
   PreAssemblySetup(fes);
 
-  if (const auto * const law_coef = dynamic_cast<const MFEMScalarLawCoefficient *>(&_k_coef))
-  {
-    // Curl u is still projected on the host until a device curl kernel exists; the law is
-    // evaluated on the device
-    mfem::CoefficientVector curl_cv(*_qspace, mfem::CoefficientStorage::FULL);
-    curl_cv.Project(_curlu_coef);
-    _pa_res_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
-
-    // Passing 'true' into getLaw is correct here, for all scenarios. For now, the Law struct
-    // is just an alias for the PowerLaw struct. Its eval() function is an inlined
-    // MFEM_HOST_DEVICE function which takes 2 doubles by reference and calculates k() and
-    // s*k'(s) on the fly using a PowerLaw. But in the future, we'll need to pay more attenion,
-    // when lookups of mfem::Vectors that may be on the host or device come into play, i.e. when
-    // we need to sample a more general parsed function once to evaluate
-    Moose::MFEM::NLCurlCurlPASetup(law_coef->lawFunction().getLaw(/*on_device=*/true),
-                                   _quad1D,
-                                   _ne,
-                                   _qspace_ir->GetWeights(),
-                                   _geom->J,
-                                   curl_cv,
-                                   _pa_res_data);
+  // If there is a ScalarCoefficientLaw, then we can evaluate k(s) and sk'(s)
+  // on the device
+  if (_law_coef)
     return;
-  }
 
+  // original path: projec k onto the coefficient vector and then use the standard setup
+  // from the mfem::internal namespace
   mfem::CoefficientVector k_cv(*_qspace, mfem::CoefficientStorage::FULL);
   k_cv.Project(_k_coef);
-
   _pa_res_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
   mfem::internal::PACurlCurlSetup3D(
       _quad1D, _k_coef.GetVDim(), _ne, _qspace_ir->GetWeights(), _geom->J, k_cv, _pa_res_data);
@@ -193,6 +165,20 @@ NLCurlCurlIntegrator::AddMultGradPA(const mfem::Vector & x, mfem::Vector & y) co
 void
 NLCurlCurlIntegrator::AddMultPA(const mfem::Vector & x, mfem::Vector & y) const
 {
+  // x is the state as an E-vector, since NonlinearForm::Mult is the only caller
+  if (_law_coef)
+  {
+    ComputeCurlAtQuadPoints(x);
+    _pa_res_data.SetSize(_ndata * _nq * _ne, mfem::Device::GetMemoryType());
+    Moose::MFEM::NLCurlCurlPASetup(_law_coef->lawFunction().getLaw(/*on_device=*/true),
+                                   _quad1D,
+                                   _ne,
+                                   _qspace_ir->GetWeights(),
+                                   _geom->J,
+                                   _curl_qp,
+                                   _pa_res_data);
+  }
+
   mfem::CurlCurlIntegrator::ApplyPAKernels::Run(_dim,
                                                 _dofs1D,
                                                 _quad1D,
@@ -274,6 +260,14 @@ NLCurlCurlIntegrator::PreAssemblySetup(const mfem::FiniteElementSpace & fes)
     _qspace_mesh_sequence = mesh->GetSequence();
     _qspace_ir = rule;
   }
+}
+
+void NLCurlCurlIntegrator::ComputeCurlAtQuadPoints(const mfem::Vector & x) const
+{
+  _curl_qp.SetSize(3 * _nq * _ne, mfem::Device::GetMemoryType());
+  Moose::MFEM::NLCurlCurlReferenceCurl3D(
+      _dofs1D, _quad1D, _ne, _mapsO->B, _mapsC->B, _mapsC->G, x, _curl_qp);
+  Moose::MFEM::NLCurlCurlPhysicalCurl3D(_quad1D, _ne, _geom->J, _curl_qp);
 }
 }
 
