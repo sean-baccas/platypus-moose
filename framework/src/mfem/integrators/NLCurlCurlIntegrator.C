@@ -109,6 +109,8 @@ NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & x,
                                        _curl_qp,
                                        _pa_grad_data,
                                        _curlu_zero_tol);
+    if (_law_coef->kTarget())
+      ComputeKAtTarget(x, fes);
     return;
   }
 
@@ -268,6 +270,34 @@ void NLCurlCurlIntegrator::ComputeCurlAtQuadPoints(const mfem::Vector & x) const
   Moose::MFEM::NLCurlCurlReferenceCurl3D(
       _dofs1D, _quad1D, _ne, _mapsO->B, _mapsC->B, _mapsC->G, x, _curl_qp);
   Moose::MFEM::NLCurlCurlPhysicalCurl3D(_quad1D, _ne, _geom->J, _curl_qp);
+}
+
+void
+NLCurlCurlIntegrator::ComputeKAtTarget(const mfem::Vector & x,
+                                       const mfem::FiniteElementSpace & fes)
+{
+  mfem::QuadratureFunction & k = *_law_coef->kTarget();
+  mooseAssert(k.GetSpace()->GetMesh() == fes.GetMesh(),
+              "The k target must be defined on the mesh of the integrator's FE space.");
+
+  // The maps and geometric factors are cached by mfem against the address of the rule, which the
+  // target's quadrature space keeps alive
+  const mfem::IntegrationRule & ir = k.GetSpace()->GetIntRule(0);
+  const auto * el = static_cast<const mfem::VectorTensorFiniteElement *>(fes.GetTypicalFE());
+  const mfem::DofToQuad & maps_c = el->GetDofToQuad(ir, mfem::DofToQuad::TENSOR);
+  const mfem::DofToQuad & maps_o = el->GetDofToQuadOpen(ir, mfem::DofToQuad::TENSOR);
+  const mfem::GeometricFactors * geom =
+      fes.GetMesh()->GetGeometricFactors(ir, mfem::GeometricFactors::JACOBIANS);
+  const int quad1D = maps_c.nqpt;
+
+  _k_target_curl.SetSize(3 * k.Size(), mfem::Device::GetMemoryType());
+  Moose::MFEM::NLCurlCurlReferenceCurl3D(
+      _dofs1D, quad1D, _ne, maps_o.B, maps_c.B, maps_c.G, x, _k_target_curl);
+  Moose::MFEM::NLCurlCurlPhysicalCurl3D(quad1D, _ne, geom->J, _k_target_curl);
+  Moose::MFEM::NLCurlCurlLawK(_law_coef->lawFunction().getLaw(/*on_device=*/true),
+                              k.Size(),
+                              _k_target_curl,
+                              k);
 }
 }
 

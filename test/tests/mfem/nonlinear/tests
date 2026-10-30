@@ -214,4 +214,19 @@
     cli_args = 'Executioner/assembly_level=partial'
     recover = false
   []
+  [MFEMNonLinearCurlCurlPartialPowerLaw]
+    type = CSVDiff
+    input = nlcurlcurl_nlcoef_powerlaw.i
+    csvdiff = 'OutputData/MFEMNonLinearCurlCurl.csv '
+              'OutputData/MFEMNonLinearCurlCurl_line_sample_h_field_0001.csv'
+    design = 'syntax/Problem/index.md MFEMNLCurlCurlKernel.md'
+    issues = '#33579'
+    requirement = 'The system shall converge to a manufactured solution of a nonlinear definite '
+                  'Maxwell problem using a nonlinear curl-curl kernel with partial assembly, as '
+                  'measured by the L2 error against the exact solution.'
+    capabilities = 'mfem'
+    compute_devices = 'cpu cuda'
+    cli_args = 'Executioner/assembly_level=partial'
+    recover = false
+  []
 []

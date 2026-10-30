@@ -397,4 +397,21 @@ NLCurlCurlPASetup(const Law law,
                  Diag(q, 5, e) = beta * k * M33; // D33
                });
 }
+
+void
+NLCurlCurlLawK(const Law law, const int N, const mfem::Vector & c, mfem::Vector & k)
+{
+  auto C = mfem::Reshape(c.Read(), 3, N);
+  auto K = k.Write();
+
+  mfem::forall(N,
+               [=] MFEM_HOST_DEVICE(int i)
+               {
+                 const mfem::real_t c1 = C(0, i);
+                 const mfem::real_t c2 = C(1, i);
+                 const mfem::real_t c3 = C(2, i);
+                 mfem::real_t s_dk_ds; // unused
+                 law.eval(std::sqrt(c1 * c1 + c2 * c2 + c3 * c3), K[i], s_dk_ds);
+               });
+}
 } // namespace Moose::MFEM

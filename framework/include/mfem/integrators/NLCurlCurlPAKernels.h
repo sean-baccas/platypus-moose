@@ -104,4 +104,11 @@ void NLCurlCurlPASetup(const Law law,
                        const mfem::Vector & c,
                        mfem::Vector & op);
 
+// Evaluates the law k at the magnitude of the physical curl at each point.
+// The params are:
+// const Law law - the law k(s)
+// const int N - the number of points
+// const Vector & c - the physical curl, laid out as (3, N)
+// Vector & k - k(|c|), of size N
+void NLCurlCurlLawK(const Law law, const int N, const mfem::Vector & c, mfem::Vector & k);
 } // namespace Moose::MFEM

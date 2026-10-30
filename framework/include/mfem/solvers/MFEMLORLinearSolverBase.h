@@ -42,17 +42,17 @@ protected:
   mfem::Array<int> _ess_bdr_markers;
   mfem::Array<int> _ess_tdofs;
 
-private:
-  void SetLORSolver();
-
-  /// Checks for the correct configuration of quadrature bases for LOR spectral equivalence
-  virtual void CheckSpectralEquivalence(mfem::ParBilinearForm & blf) const;
-
   /// Rebuild any Low-Order-Refined components from the unreduced bilinear form. Called only when
   /// _lor is true, before the assembled linear operator has been set via SetOperator. Default
   /// no-op; override in solvers or preconditioners that construct LOR-related data from the
   /// bilinear form.
   virtual void SetupLOR();
+
+private:
+  void SetLORSolver();
+
+  /// Checks for the correct configuration of quadrature bases for LOR spectral equivalence
+  virtual void CheckSpectralEquivalence(mfem::ParBilinearForm & blf) const;
 };
 
 template <class MFEMSolverType>

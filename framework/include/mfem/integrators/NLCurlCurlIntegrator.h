@@ -82,6 +82,9 @@ public:
   // Evaluates the physical curl of the state E-vector x at the quadpoints into _curl_qp
   void ComputeCurlAtQuadPoints(const mfem::Vector & x) const;
 
+  /// Evaluates k at the state E-vector x on the points of the law coefficient's k target
+  void ComputeKAtTarget(const mfem::Vector & x, const mfem::FiniteElementSpace & fes);
+
 protected:
   mfem::CurlCurlIntegrator _curlcurl_res_integ; // (k(|curl u|) curl u, curl phi_j)
   NLCurlCurlJacMatrixCoefficient _curlcurl_jac_matrix_coef;
@@ -97,6 +100,9 @@ protected:
   // Similarly, we introduce mutable vectors for the curl of the current state (evaluated on
   // quadpoints) and ditto for the current k(s) evaluated on quadpoints
   mutable mfem::Vector _curl_qp;
+
+  /// Physical curl at the points of the law coefficient's k target, laid out as (3, NQ, NE)
+  mfem::Vector _k_target_curl;
 
   const mfem::DofToQuad * _mapsO;       ///< Not owned. DOF-to-quad map, open.
   const mfem::DofToQuad * _mapsC;       ///< Not owned. DOF-to-quad map, closed.
