@@ -98,10 +98,8 @@
 
 [Solvers]
   [matrix_free_ams]
-    type = MFEMMatrixFreeAMS
+    type = MFEMLORHypreAMS
     alpha_coefficient = k
-    inner_pi_iterations = 4
-    inner_g_iterations = 1
   []
   [lin]
     type = MFEMCGSolver

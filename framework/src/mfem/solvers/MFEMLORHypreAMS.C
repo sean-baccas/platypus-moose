@@ -58,6 +58,15 @@ MFEMLORHypreAMS::ConstructSolver()
   _solver = std::make_unique<Rebuilder>(*this);
 }
 
+/*
+  It is probably fine to hardcode the surrogate to have curlcurlintegrator and massintegrator.
+  We need to check batched assembly, since (as the comment states) the AMS will default
+  to host assembly on refined mesh if BatchedLORAssembly is not supported
+
+  The problem there is that (see lor_batched.cpp:51) mfem::BatchedLORAssembly::FormIsSupported
+  is quite picky. If we are using ND elements (that's the goal for these curlcurl problems)
+  then it will return false if it sees any integrators other than curlcurl and mass
+*/
 void
 MFEMLORHypreAMS::UpdateEquationSystemContext()
 {
@@ -70,23 +79,30 @@ MFEMLORHypreAMS::UpdateEquationSystemContext()
   // Release in reverse order of construction, since each member references the one before it
   _lor_ams.reset();
   _surrogate.reset();
-  _k_coef.reset();
-  _k_qf.reset();
-  _k_qspace.reset();
 
   mfem::Coefficient * alpha = &_alpha_coef;
   if (_alpha_law_coef)
   {
-    // Batched LOR assembly takes a QuadratureFunctionCoefficient by reference rather than
-    // evaluating it, after checking only the mesh and the order of the rule; the rule must also
-    // have the same points, so it is the one batched LOR uses
-    _k_ir = mfem::GetCollocatedIntRule(fespace);
-    _k_qspace = std::make_unique<mfem::QuadratureSpace>(*fespace.GetMesh(), _k_ir);
-    _k_qf = std::make_unique<mfem::QuadratureFunction>(*_k_qspace);
-    // Placeholder for solves that never assemble a gradient
-    *_k_qf = 1.0;
-    _k_coef = std::make_unique<mfem::QuadratureFunctionCoefficient>(*_k_qf);
-    _alpha_law_coef->setKTarget(_k_qf.get());
+    // This runs on every SetOperator, after the gradient assembly has filled the k target for the
+    // operator being set, so the target is created once and must not be replaced here
+    if (!_k_qf)
+    {
+      // Batched LOR assembly takes a QuadratureFunctionCoefficient by reference rather than
+      // evaluating it, after checking only the mesh and the order of the rule; the rule must also
+      // have the same points, so it is the one batched LOR uses
+      _k_ir = mfem::GetCollocatedIntRule(fespace);
+      _k_qspace = std::make_unique<mfem::QuadratureSpace>(*fespace.GetMesh(), _k_ir);
+      _k_qf = std::make_unique<mfem::QuadratureFunction>(*_k_qspace);
+      // Placeholder for solves that never assemble a gradient
+      *_k_qf = 1.0;
+      _k_coef = std::make_unique<mfem::QuadratureFunctionCoefficient>(*_k_qf);
+
+      // this passes the quadraturefunction for k down to the scalar law object;
+      // when the time is right, it will be filled up with the values for k on quadpoints.
+      // the only issue is that it gets filled up from AssembleGradPA, i.e. not during
+      // legacy runs
+      _alpha_law_coef->setKTarget(_k_qf.get());
+    }
     alpha = _k_coef.get();
   }
 
@@ -112,6 +128,8 @@ MFEMLORHypreAMS::SetSolverParameters(mfem::HypreAMS & solver)
 void
 MFEMLORHypreAMS::BuildSolver()
 {
+  if (_k_qf)
+    mfem::out << "LOR build: k [" << _k_qf->Min() << ", " << _k_qf->Max() << "]" << std::endl;
   // Batched LOR assembly, gradient matrix and vertex coordinates. hypre performs the AMS setup
   // itself on the first apply, so that cost is timed in "apply".
   TIME_SECTION("setup", 3);

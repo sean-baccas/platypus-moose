@@ -82,8 +82,9 @@ public:
   // Evaluates the physical curl of the state E-vector x at the quadpoints into _curl_qp
   void ComputeCurlAtQuadPoints(const mfem::Vector & x) const;
 
-  /// Evaluates k at the state E-vector x on the points of the law coefficient's k target
-  void ComputeKAtTarget(const mfem::Vector & x, const mfem::FiniteElementSpace & fes);
+  /// Fills the law coefficient's k target with the volume average of k over each element, from
+  /// the curl at the quadpoints that AssembleGradPA has just evaluated into _curl_qp
+  void ComputeKAtTarget();
 
 protected:
   mfem::CurlCurlIntegrator _curlcurl_res_integ; // (k(|curl u|) curl u, curl phi_j)

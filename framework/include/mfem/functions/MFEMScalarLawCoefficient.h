@@ -31,7 +31,8 @@ public:
   const MFEMScalarLawFunctionBase & lawFunction() const { return _law_function; }
 
   /// Set the quadrature function that NLCurlCurlIntegrator::AssembleGradPA fills, on the device,
-  /// with k at the current state at the points of its quadrature space. Not owned.
+  /// with the element average of k at the current state, at every point of its quadrature space.
+  // Not owned.
   void setKTarget(mfem::QuadratureFunction * k_target) { _k_target = k_target; }
   /// The quadrature function set by setKTarget, or nullptr if no consumer requested one
   mfem::QuadratureFunction * kTarget() const { return _k_target; }

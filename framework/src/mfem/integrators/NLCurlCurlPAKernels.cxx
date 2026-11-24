@@ -399,19 +399,45 @@ NLCurlCurlPASetup(const Law law,
 }
 
 void
-NLCurlCurlLawK(const Law law, const int N, const mfem::Vector & c, mfem::Vector & k)
+NLCurlCurlLawKElementMean(const Law law,
+                          const int Q1D,
+                          const int NE,
+                          const mfem::Array<mfem::real_t> & w,
+                          const mfem::Vector & j,
+                          const mfem::Vector & c,
+                          const int NT,
+                          mfem::Vector & k)
 {
-  auto C = mfem::Reshape(c.Read(), 3, N);
-  auto K = k.Write();
+  const int NQ = Q1D * Q1D * Q1D;
+  auto W = w.Read();
+  auto J = mfem::Reshape(j.Read(), NQ, 3, 3, NE);
+  auto C = mfem::Reshape(c.Read(), 3, NQ, NE);
+  auto K = mfem::Reshape(k.Write(), NT, NE);
 
-  mfem::forall(N,
-               [=] MFEM_HOST_DEVICE(int i)
+  // One thread per element, since each reduces over all of its quadpoints
+  mfem::forall(NE,
+               [=] MFEM_HOST_DEVICE(int e)
                {
-                 const mfem::real_t c1 = C(0, i);
-                 const mfem::real_t c2 = C(1, i);
-                 const mfem::real_t c3 = C(2, i);
-                 mfem::real_t s_dk_ds; // unused
-                 law.eval(std::sqrt(c1 * c1 + c2 * c2 + c3 * c3), K[i], s_dk_ds);
+                 mfem::real_t k_vol = 0.0;
+                 mfem::real_t vol = 0.0;
+                 for (int q = 0; q < NQ; ++q)
+                 {
+                   // The sign of det(J) cancels in k_vol / vol
+                   const mfem::real_t detJ =
+                       J(q, 0, 0, e) * (J(q, 1, 1, e) * J(q, 2, 2, e) - J(q, 2, 1, e) * J(q, 1, 2, e)) -
+                       J(q, 1, 0, e) * (J(q, 0, 1, e) * J(q, 2, 2, e) - J(q, 2, 1, e) * J(q, 0, 2, e)) +
+                       J(q, 2, 0, e) * (J(q, 0, 1, e) * J(q, 1, 2, e) - J(q, 1, 1, e) * J(q, 0, 2, e));
+                   const mfem::real_t dv = W[q] * detJ;
+                   const mfem::real_t c1 = C(0, q, e);
+                   const mfem::real_t c2 = C(1, q, e);
+                   const mfem::real_t c3 = C(2, q, e);
+                   mfem::real_t k_q, s_dk_ds; // s_dk_ds unused
+                   law.eval(std::sqrt(c1 * c1 + c2 * c2 + c3 * c3), k_q, s_dk_ds);
+                   k_vol += dv * k_q;
+                   vol += dv;
+                 }
+                 for (int t = 0; t < NT; ++t)
+                   K(t, e) = k_vol / vol;
                });
 }
 } // namespace Moose::MFEM

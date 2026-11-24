@@ -110,7 +110,7 @@ NLCurlCurlIntegrator::AssembleGradPA(const mfem::Vector & x,
                                        _pa_grad_data,
                                        _curlu_zero_tol);
     if (_law_coef->kTarget())
-      ComputeKAtTarget(x, fes);
+      ComputeKAtTarget();
     return;
   }
 
@@ -273,31 +273,26 @@ void NLCurlCurlIntegrator::ComputeCurlAtQuadPoints(const mfem::Vector & x) const
 }
 
 void
-NLCurlCurlIntegrator::ComputeKAtTarget(const mfem::Vector & x,
-                                       const mfem::FiniteElementSpace & fes)
+NLCurlCurlIntegrator::ComputeKAtTarget()
 {
   mfem::QuadratureFunction & k = *_law_coef->kTarget();
-  mooseAssert(k.GetSpace()->GetMesh() == fes.GetMesh(),
+  mooseAssert(k.GetSpace()->GetMesh() == _qspace_mesh,
               "The k target must be defined on the mesh of the integrator's FE space.");
+  mooseAssert(k.Size() % _ne == 0,
+              "The k target must have the same number of points in every element.");
 
-  // The maps and geometric factors are cached by mfem against the address of the rule, which the
-  // target's quadrature space keeps alive
-  const mfem::IntegrationRule & ir = k.GetSpace()->GetIntRule(0);
-  const auto * el = static_cast<const mfem::VectorTensorFiniteElement *>(fes.GetTypicalFE());
-  const mfem::DofToQuad & maps_c = el->GetDofToQuad(ir, mfem::DofToQuad::TENSOR);
-  const mfem::DofToQuad & maps_o = el->GetDofToQuadOpen(ir, mfem::DofToQuad::TENSOR);
-  const mfem::GeometricFactors * geom =
-      fes.GetMesh()->GetGeometricFactors(ir, mfem::GeometricFactors::JACOBIANS);
-  const int quad1D = maps_c.nqpt;
-
-  _k_target_curl.SetSize(3 * k.Size(), mfem::Device::GetMemoryType());
-  Moose::MFEM::NLCurlCurlReferenceCurl3D(
-      _dofs1D, quad1D, _ne, maps_o.B, maps_c.B, maps_c.G, x, _k_target_curl);
-  Moose::MFEM::NLCurlCurlPhysicalCurl3D(quad1D, _ne, geom->J, _k_target_curl);
-  Moose::MFEM::NLCurlCurlLawK(_law_coef->lawFunction().getLaw(/*on_device=*/true),
-                              k.Size(),
-                              _k_target_curl,
-                              k);
+  // Batched LOR samples k only at its collocated points, which at lowest order are the element
+  // vertices, where |curl u| takes its extreme values. For a steep law such as k ~ s^19 that
+  // misrepresents the operator by orders of magnitude, so every point of an element instead gets
+  // the volume average of k over the quadpoints the operator itself is integrated with.
+  Moose::MFEM::NLCurlCurlLawKElementMean(_law_coef->lawFunction().getLaw(/*on_device=*/true),
+                                         _quad1D,
+                                         _ne,
+                                         _qspace_ir->GetWeights(),
+                                         _geom->J,
+                                         _curl_qp,
+                                         k.Size() / _ne,
+                                         k);
 }
 }
 

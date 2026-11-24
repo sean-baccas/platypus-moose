@@ -7,13 +7,15 @@ n_value = 20.0
 j_c = 1.0
 e_c = 1.0
 
+dt = 0.5
+
 [Problem]
   type = MFEMProblem
 []
 
 [Mesh]
   type = MFEMFileMesh
-  file = ../mesh/split_embedded_concentric_torus.e
+  file = ../mesh/split_embedded_torus_hex.e
 []
 
 [SubMeshes]
@@ -45,6 +47,8 @@ e_c = 1.0
     type = MFEMVectorFESpace
     fec_type = ND
     fec_order = FIRST
+    closed_basis = GaussLobatto
+    open_basis = IntegratedGLL
     submesh = conductor
   []
 []
@@ -78,10 +82,11 @@ e_c = 1.0
 
 [Functions]
   [resistivity]
-    type = MFEMParsedFunction
-    expression = '(e_c/j_c) * (j/j_c)^(n_val-1)'
-    symbol_names = 'j e_c j_c n_val'
-    symbol_values = 'coil_induced_h_field_curl_mag ${e_c} ${j_c} ${n_value}'
+    type = MFEMPowerLawFunction # rho(j) = (e_c/j_c) (j/j_c)^(n-1) = a + b j^m
+    argument = coil_induced_h_field_curl_mag
+    a = 0
+    b = ${fparse e_c / j_c^n_value}
+    n = ${fparse n_value - 1}
   []
   [j_dresistivity_dj]
     type = MFEMParsedFunction
@@ -126,15 +131,18 @@ e_c = 1.0
 
 [Solvers]
   [ams]
-    type = MFEMHypreAMS
-    fespace = CoilHCurlFESpace
+    type = MFEMLORHypreAMS
+    # Surrogate is alpha C + beta M; the Jacobian is mu M + dt (rho C + ...), so
+    # beta = mu/dt makes the surrogate (1/dt) times the Jacobians isotropic part
+    alpha_coefficient = resistivity
+    beta_coefficient = ${fparse vacuum_permeability / dt}
   []
   [pcg]
-    type = MFEMHyprePCG
+    type = MFEMCGSolver
     preconditioner = ams
-    l_tol = 1e-12
-    l_max_its = 100
-    print_level = 0
+    l_tol = 1e-8
+    l_max_its = 1000
+    print_level = 2      # one summary per solve: iteration count and average reduction factor
   []
   [newton]
     type = MFEMNewtonNonlinearSolver
@@ -149,6 +157,8 @@ e_c = 1.0
   dt = 0.5
   start_time = 0.0
   end_time = 2.0
+  assembly_level=partial
+  device=cuda
 []
 
 [MultiApps]
@@ -179,14 +189,13 @@ e_c = 1.0
 []
 
 [Outputs]
-  inactive = ConductorParaViewDataCollection
   [ReportedPostprocessors]
     type = CSV
     file_base = OutputData/HPhiMagnetodynamicNLClosedCoilCSV
   []
   [ConductorParaViewDataCollection]
     type = MFEMParaViewDataCollection
-    file_base = OutputData/HPhiMagnetodynamicNLClosedCoil
+    file_base = OutputData/HPhiMagnetodynamicNLClosedCoil_PA
     vtk_format = ASCII
     submesh = conductor
   []

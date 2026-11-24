@@ -497,6 +497,10 @@ EquationSystem::GetGradient(const mfem::Vector & u) const
     _jacobian = _linear_operator;
 
   MFEM_DEVICE_SYNC;
+  // Hypre solvers and preconditioners need the HypreParMatrix itself, and apply it inside hypre,
+  // where this wrapper could not time the action anyway
+  if (_jacobian.Is<mfem::HypreParMatrix>())
+    return *_jacobian;
   _timed_jacobian = std::make_unique<TimedJacobian>(*_jacobian, _perf_graph);
   return *_timed_jacobian;
 }

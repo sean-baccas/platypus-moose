@@ -104,11 +104,23 @@ void NLCurlCurlPASetup(const Law law,
                        const mfem::Vector & c,
                        mfem::Vector & op);
 
-// Evaluates the law k at the magnitude of the physical curl at each point.
+// Evaluates the volume average of the law k over each element from the physical curl at the
+// quadpoints, and writes it to every point of that element in a target.
 // The params are:
 // const Law law - the law k(s)
-// const int N - the number of points
-// const Vector & c - the physical curl, laid out as (3, N)
-// Vector & k - k(|c|), of size N
-void NLCurlCurlLawK(const Law law, const int N, const mfem::Vector & c, mfem::Vector & k);
+// const int Q1D - the number of quadpoints in each dimension
+// const int NE - the number of elements
+// const Array<real_t> & w - the quadrature weights
+// const Vector & j - the jacobian matrices from GeometricFactors, laid out as (NQ, 3, 3, NE)
+// const Vector & c - the physical curl, laid out as (3, NQ, NE)
+// const int NT - the number of target points per element
+// Vector & k - the element averages of k, laid out as (NT, NE)
+void NLCurlCurlLawKElementMean(const Law law,
+                               const int Q1D,
+                               const int NE,
+                               const mfem::Array<mfem::real_t> & w,
+                               const mfem::Vector & j,
+                               const mfem::Vector & c,
+                               const int NT,
+                               mfem::Vector & k);
 } // namespace Moose::MFEM
